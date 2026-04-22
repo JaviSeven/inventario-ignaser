@@ -391,6 +391,98 @@ const App: React.FC = () => {
     return { created: createdItems.length, skipped };
   };
 
+  const updateItem = async (
+    itemId: string,
+    updates: { concept: string; obra: string; description: string; quantity: number; location: string; imageUrl: string }
+  ) => {
+    if (!currentUser || currentUser.role === 'SoloLectura') return;
+
+    const current = items.find(i => i.id === itemId);
+    if (!current) return;
+
+    const concept = updates.concept.trim();
+    const obra = updates.obra.trim();
+    const description = updates.description.trim();
+    const location = updates.location.trim();
+    const quantity = Math.max(0, Math.floor(updates.quantity));
+    if (!concept || !obra || !description || !location) return;
+
+    const now = Date.now();
+    const updatedItem: StockItem = {
+      ...current,
+      concept,
+      obra,
+      description,
+      quantity,
+      location,
+      imageUrl: updates.imageUrl ?? '',
+      updatedAt: now
+    };
+
+    const { error: updateError } = await supabase.from('items').update({
+      concept: updatedItem.concept,
+      obra: updatedItem.obra,
+      description: updatedItem.description,
+      quantity: updatedItem.quantity,
+      location: updatedItem.location ?? null,
+      image_url: updatedItem.imageUrl ?? '',
+      updated_at: now
+    }).eq('id', itemId);
+    if (updateError) {
+      console.error('Error actualizando item:', updateError);
+      return;
+    }
+
+    const changed: string[] = [];
+    if (current.concept !== updatedItem.concept) changed.push('concepto');
+    if (current.obra !== updatedItem.obra) changed.push('obra');
+    if (current.description !== updatedItem.description) changed.push('descripcion');
+    if ((current.location ?? '') !== (updatedItem.location ?? '')) changed.push('ubicacion');
+    if ((current.imageUrl ?? '') !== (updatedItem.imageUrl ?? '')) changed.push('imagen');
+    if (current.quantity !== updatedItem.quantity) changed.push('cantidad');
+
+    const quantityDiff = updatedItem.quantity - current.quantity;
+    const movementId = crypto.randomUUID();
+    const movement: Movement = {
+      id: movementId,
+      itemId: itemId,
+      itemConcept: updatedItem.concept,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      type: 'ADJUST',
+      quantityChange: quantityDiff,
+      newQuantity: updatedItem.quantity,
+      timestamp: now,
+      note: changed.length > 0
+        ? `Edicion de material (${changed.join(', ')})`
+        : 'Edicion de material',
+      obraProcedencia: updatedItem.obra,
+      obraDestino: undefined
+    };
+
+    const { error: movError } = await supabase.from('movements').insert({
+      id: movementId,
+      item_id: itemId,
+      item_concept: movement.itemConcept,
+      user_id: currentUser.id,
+      user_name: currentUser.name,
+      type: movement.type,
+      quantity_change: movement.quantityChange,
+      new_quantity: movement.newQuantity,
+      timestamp: movement.timestamp,
+      note: movement.note ?? null,
+      obra_procedencia: movement.obraProcedencia ?? null,
+      obra_destino: null
+    });
+    if (movError) {
+      console.error('Error registrando edicion en historial:', movError);
+    } else {
+      setMovements(prev => [movement, ...prev]);
+    }
+
+    setItems(prev => prev.map(i => (i.id === itemId ? updatedItem : i)));
+  };
+
   const handleMaterialOut = async (itemId: string, amount: number, obraDestino: string) => {
     if (!currentUser || currentUser.role === 'SoloLectura') return;
 
@@ -774,6 +866,7 @@ const App: React.FC = () => {
                 <Inventory 
                   items={items} 
                   onMaterialOut={handleMaterialOut}
+                  onUpdate={updateItem}
                   onDelete={deleteItem}
                   currentUser={currentUser}
                 />

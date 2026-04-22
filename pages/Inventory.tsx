@@ -1,36 +1,93 @@
 
 import React, { useState } from 'react';
 import { StockItem, User } from '../types';
-import { Search, Trash2, MapPin, MapPinned, ArrowDownCircle, X, Check } from 'lucide-react';
+import { Search, Trash2, MapPin, MapPinned, ArrowDownCircle, X, Check, Pencil, ImagePlus } from 'lucide-react';
 
 interface InventoryProps {
   items: StockItem[];
   onMaterialOut: (itemId: string, amount: number, obraDestino: string) => void;
+  onUpdate: (itemId: string, updates: { concept: string; obra: string; description: string; quantity: number; location: string; imageUrl: string }) => void | Promise<void>;
   onDelete: (id: string) => void;
   currentUser: User;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onDelete, currentUser }) => {
+const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, onDelete, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [salidaModal, setSalidaModal] = useState<{ item: StockItem } | null>(null);
   const [salidaObra, setSalidaObra] = useState('');
-  const [salidaUnidades, setSalidaUnidades] = useState(1);
+  const [salidaUnidades, setSalidaUnidades] = useState('1');
+  const [editModal, setEditModal] = useState<{ item: StockItem } | null>(null);
+  const [editConcept, setEditConcept] = useState('');
+  const [editObra, setEditObra] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editQuantity, setEditQuantity] = useState('1');
+  const [editLocation, setEditLocation] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
 
   const openSalidaModal = (item: StockItem) => {
     setSalidaModal({ item });
     setSalidaObra('');
-    setSalidaUnidades(1);
+    setSalidaUnidades('1');
   };
 
   const closeSalidaModal = () => {
     setSalidaModal(null);
     setSalidaObra('');
-    setSalidaUnidades(1);
+    setSalidaUnidades('1');
+  };
+
+  const openEditModal = (item: StockItem) => {
+    setEditModal({ item });
+    setEditConcept(item.concept);
+    setEditObra(item.obra);
+    setEditDescription(item.description);
+    setEditQuantity(String(item.quantity));
+    setEditLocation(item.location ?? '');
+    setEditImageUrl(item.imageUrl ?? '');
+  };
+
+  const closeEditModal = () => {
+    setEditModal(null);
+    setEditConcept('');
+    setEditObra('');
+    setEditDescription('');
+    setEditQuantity('1');
+    setEditLocation('');
+    setEditImageUrl('');
+  };
+
+  const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setEditImageUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const confirmEdit = async () => {
+    if (!editModal) return;
+    const quantity = Math.floor(Number(editQuantity));
+    if (!editConcept.trim() || !editObra.trim() || !editDescription.trim() || !editLocation.trim()) return;
+    if (!Number.isFinite(quantity) || quantity < 0) return;
+
+    await onUpdate(editModal.item.id, {
+      concept: editConcept.trim(),
+      obra: editObra.trim(),
+      description: editDescription.trim(),
+      quantity,
+      location: editLocation.trim(),
+      imageUrl: editImageUrl || ''
+    });
+    closeEditModal();
   };
 
   const confirmSalida = () => {
-    if (!salidaModal || !salidaObra.trim() || salidaUnidades < 1) return;
-    const max = Math.min(salidaUnidades, salidaModal.item.quantity);
+    if (!salidaModal || !salidaObra.trim()) return;
+    const requested = Math.floor(Number(salidaUnidades));
+    if (!Number.isFinite(requested) || requested < 1) return;
+    const max = Math.min(requested, salidaModal.item.quantity);
     if (max < 1) return;
     onMaterialOut(salidaModal.item.id, max, salidaObra.trim());
     closeSalidaModal();
@@ -77,6 +134,14 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onDelete, c
                     className="p-2 bg-rose-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <Trash2 size={16} />
+                  </button>
+                )}
+                {currentUser.role !== 'SoloLectura' && (
+                  <button
+                    onClick={() => openEditModal(item)}
+                    className="p-2 bg-blue-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ml-2"
+                  >
+                    <Pencil size={16} />
                   </button>
                 )}
               </div>
@@ -155,7 +220,7 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onDelete, c
                   min={1}
                   max={salidaModal.item.quantity}
                   value={salidaUnidades}
-                  onChange={e => setSalidaUnidades(Math.max(1, Math.min(salidaModal.item.quantity, parseInt(e.target.value, 10) || 1)))}
+                  onChange={e => setSalidaUnidades(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
                 />
                 <p className="text-xs text-slate-400 mt-1">Máximo: {salidaModal.item.quantity} uds.</p>
@@ -172,10 +237,130 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onDelete, c
               <button
                 type="button"
                 onClick={confirmSalida}
-                disabled={!salidaObra.trim() || salidaUnidades < 1}
+                disabled={!salidaObra.trim() || !Number.isFinite(Number(salidaUnidades)) || Number(salidaUnidades) < 1}
                 className="flex-1 flex items-center justify-center gap-2 py-3 bg-rose-600 text-white rounded-xl font-semibold hover:bg-rose-700 disabled:opacity-50"
               >
                 <Check size={18} /> Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edición material */}
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={closeEditModal}>
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-slate-800 mb-1">Editar material</h3>
+            <p className="text-sm text-slate-500 mb-6">Actualiza cualquier dato del material.</p>
+
+            <div className="space-y-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Concepto</label>
+                  <input
+                    type="text"
+                    value={editConcept}
+                    onChange={e => setEditConcept(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Obra de procedencia</label>
+                  <input
+                    type="text"
+                    value={editObra}
+                    onChange={e => setEditObra(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Descripcion</label>
+                <textarea
+                  rows={3}
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Unidades en stock</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editQuantity}
+                    onChange={e => setEditQuantity(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Ubicacion en almacen</label>
+                  <input
+                    type="text"
+                    value={editLocation}
+                    onChange={e => setEditLocation(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Foto del material</label>
+                <div className="flex items-center gap-4">
+                  <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors">
+                    <ImagePlus size={16} /> Cambiar imagen
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleEditImageChange}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setEditImageUrl('')}
+                    className="px-4 py-2.5 bg-rose-50 text-rose-700 rounded-xl hover:bg-rose-100 transition-colors"
+                  >
+                    Quitar imagen
+                  </button>
+                </div>
+                {editImageUrl ? (
+                  <img src={editImageUrl} alt="Preview" className="mt-3 h-32 w-32 rounded-xl object-cover border border-slate-200" />
+                ) : (
+                  <p className="text-xs text-slate-400 mt-2">Sin imagen.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-100 text-slate-600 rounded-xl font-semibold hover:bg-slate-200"
+              >
+                <X size={18} /> Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmEdit}
+                disabled={
+                  !editConcept.trim() ||
+                  !editObra.trim() ||
+                  !editDescription.trim() ||
+                  !editLocation.trim() ||
+                  !Number.isFinite(Number(editQuantity)) ||
+                  Number(editQuantity) < 0
+                }
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Check size={18} /> Guardar cambios
               </button>
             </div>
           </div>
