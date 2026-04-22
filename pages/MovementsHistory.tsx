@@ -20,13 +20,16 @@ const MovementsHistory: React.FC<HistoryProps> = ({ movements }) => {
   const filteredMovements = movements.filter(m => {
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
+    const itemConcept = (m.itemConcept || '').toLowerCase();
+    const userName = (m.userName || '').toLowerCase();
+    const itemId = (m.itemId || '').toLowerCase();
     const obraProc = (m.obraProcedencia || '').toLowerCase();
     const obraDest = (m.obraDestino || '').toLowerCase();
     const tipo = (typeLabels[m.type] || '').toLowerCase();
     return (
-      m.itemConcept.toLowerCase().includes(term) ||
-      m.userName.toLowerCase().includes(term) ||
-      m.itemId.toLowerCase().includes(term) ||
+      itemConcept.includes(term) ||
+      userName.includes(term) ||
+      itemId.includes(term) ||
       (m.note || '').toLowerCase().includes(term) ||
       obraProc.includes(term) ||
       obraDest.includes(term) ||
@@ -73,7 +76,7 @@ const MovementsHistory: React.FC<HistoryProps> = ({ movements }) => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="font-semibold text-slate-800">{m.itemConcept}</div>
-                    <div className="text-[10px] text-slate-400">ID: {m.itemId.slice(0, 8)}</div>
+                    <div className="text-[10px] text-slate-400">ID: {m.itemId ? m.itemId.slice(0, 8) : '—'}</div>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">{m.obraProcedencia ?? '—'}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{m.obraDestino ?? '—'}</td>
