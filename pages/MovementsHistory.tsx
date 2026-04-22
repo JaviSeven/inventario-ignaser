@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Movement } from '../types';
+import { Movement, User } from '../types';
 import { ArrowUpCircle, ArrowDownCircle, PlusCircle, Trash2, Clock, Search } from 'lucide-react';
 
 const typeLabels: Record<string, string> = {
@@ -12,10 +12,13 @@ const typeLabels: Record<string, string> = {
 
 interface HistoryProps {
   movements: Movement[];
+  currentUser: User;
+  onClearHistory: () => Promise<void> | void;
 }
 
-const MovementsHistory: React.FC<HistoryProps> = ({ movements }) => {
+const MovementsHistory: React.FC<HistoryProps> = ({ movements, currentUser, onClearHistory }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [clearing, setClearing] = useState(false);
 
   const filteredMovements = movements.filter(m => {
     if (!searchTerm.trim()) return true;
@@ -37,6 +40,17 @@ const MovementsHistory: React.FC<HistoryProps> = ({ movements }) => {
     );
   });
 
+  const clearHistory = async () => {
+    if (currentUser.role !== 'Admin') return;
+    if (!confirm('¿Seguro que quieres vaciar todo el historial? Esta accion no se puede deshacer.')) return;
+    setClearing(true);
+    try {
+      await onClearHistory();
+    } finally {
+      setClearing(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="relative">
@@ -49,6 +63,18 @@ const MovementsHistory: React.FC<HistoryProps> = ({ movements }) => {
           onChange={e => setSearchTerm(e.target.value)}
         />
       </div>
+      {currentUser.role === 'Admin' && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={clearHistory}
+            disabled={clearing || movements.length === 0}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+          >
+            {clearing ? 'Vaciando historial...' : 'Vaciar historial'}
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">

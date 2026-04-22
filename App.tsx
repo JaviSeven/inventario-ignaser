@@ -616,6 +616,16 @@ const App: React.FC = () => {
     setItems(prev => prev.filter(i => i.id !== itemId));
   };
 
+  const clearHistory = async () => {
+    if (!currentUser || currentUser.role !== 'Admin') return;
+    const { error } = await supabase.from('movements').delete().not('id', 'is', null);
+    if (error) {
+      console.error('Error vaciando historial:', error);
+      return;
+    }
+    setMovements([]);
+  };
+
   const movementTypeLabel = (type: string) => {
     switch (type) {
       case 'IN': return 'Entrada';
@@ -890,7 +900,7 @@ const App: React.FC = () => {
                 />
               } />
               <Route path="/history" element={
-                <MovementsHistory movements={movements} />
+                <MovementsHistory movements={movements} currentUser={currentUser} onClearHistory={clearHistory} />
               } />
               <Route path="/add" element={
                 <AddItem onAdd={addItem} onBulkAdd={addItemsBulk} currentUser={currentUser} />

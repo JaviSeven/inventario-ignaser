@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { StockItem, User } from '../types';
-import { Search, Trash2, MapPin, MapPinned, ArrowDownCircle, X, Check, Pencil, ImagePlus } from 'lucide-react';
+import { Search, Trash2, MapPin, MapPinned, ArrowDownCircle, X, Check, Pencil, ImagePlus, ClipboardList, FilterX } from 'lucide-react';
 
 interface InventoryProps {
   items: StockItem[];
@@ -13,6 +13,8 @@ interface InventoryProps {
 
 const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, onDelete, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [onlyMinimum, setOnlyMinimum] = useState(false);
+  const [orderMessage, setOrderMessage] = useState<string | null>(null);
   const [salidaModal, setSalidaModal] = useState<{ item: StockItem } | null>(null);
   const [salidaObra, setSalidaObra] = useState('');
   const [salidaUnidades, setSalidaUnidades] = useState('1');
@@ -114,6 +116,27 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
     (item) => item.isRecurrent && typeof item.minStock === 'number' && item.quantity <= item.minStock
   );
 
+  const displayedItems = onlyMinimum ? recurrentLowStock : filteredItems;
+
+  const copyQuickOrder = async () => {
+    if (recurrentLowStock.length === 0) {
+      setOrderMessage('No hay materiales en minimo para pedir.');
+      return;
+    }
+    const lines = recurrentLowStock.map((item) => {
+      const min = item.minStock ?? 0;
+      const suggested = Math.max(min * 2 - item.quantity, 1);
+      return `- ${item.concept} | Stock actual: ${item.quantity} | Minimo: ${min} | Pedido sugerido: ${suggested} uds.`;
+    });
+    const text = `Pedido rapido de reposicion\n\n${lines.join('\n')}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setOrderMessage('Lista de pedido copiada al portapapeles.');
+    } catch {
+      setOrderMessage('No se pudo copiar automaticamente. Revisa permisos del navegador.');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="relative">
@@ -127,13 +150,38 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
         />
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setOnlyMinimum((prev) => !prev)}
+          className={`px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
+            onlyMinimum
+              ? 'bg-amber-100 text-amber-800 border-amber-200'
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          {onlyMinimum ? <FilterX size={16} className="inline mr-2" /> : <ClipboardList size={16} className="inline mr-2" />}
+          {onlyMinimum ? 'Ver todo el inventario' : 'Ver solo materiales en minimo'}
+        </button>
+        <button
+          type="button"
+          onClick={copyQuickOrder}
+          disabled={recurrentLowStock.length === 0}
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+        >
+          <ClipboardList size={16} className="inline mr-2" />
+          Copiar pedido rapido
+        </button>
+        {orderMessage && <span className="text-sm text-slate-600">{orderMessage}</span>}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {recurrentLowStock.length > 0 && (
           <div className="col-span-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 text-sm">
             Aviso de reposicion: {recurrentLowStock.length} material(es) recurrente(s) en minimo.
           </div>
         )}
-        {filteredItems.map(item => (
+        {displayedItems.map(item => (
           <div key={item.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm group hover:shadow-md transition-shadow">
             <div className="relative h-48 bg-slate-100 overflow-hidden">
               {item.imageUrl ? (
@@ -212,12 +260,14 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
           </div>
         ))}
 
-        {filteredItems.length === 0 && (
+        {displayedItems.length === 0 && (
           <div className="col-span-full py-20 text-center">
             <div className="bg-slate-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
               <Search className="text-slate-400" size={32} />
             </div>
-            <p className="text-slate-500 font-medium">No se encontraron artículos con esos criterios.</p>
+            <p className="text-slate-500 font-medium">
+              {onlyMinimum ? 'No hay materiales recurrentes en minimo.' : 'No se encontraron artículos con esos criterios.'}
+            </p>
           </div>
         )}
       </div>
