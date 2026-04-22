@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { User } from '../types';
 
 interface AddItemProps {
-  onAdd: (item: { concept: string; obra: string; description: string; imageUrl: string; quantity: number; location: string }) => void | Promise<void>;
+  onAdd: (item: { concept: string; obra: string; description: string; imageUrl: string; quantity: number; location: string; isRecurrent: boolean; minStock?: number }) => void | Promise<void>;
   onBulkAdd: (items: Array<{ concept: string; obra: string; description: string; quantity: number; location: string }>) => Promise<{ created: number; skipped: number }>;
   currentUser: User;
 }
@@ -61,6 +61,8 @@ const AddItem: React.FC<AddItemProps> = ({ onAdd, onBulkAdd, currentUser }) => {
   const [imageUrl, setImageUrl] = useState('');
   const [quantity, setQuantity] = useState<number>(1);
   const [location, setLocation] = useState('');
+  const [isRecurrent, setIsRecurrent] = useState<'no' | 'si'>('no');
+  const [minStock, setMinStock] = useState<string>('1');
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -80,7 +82,10 @@ const AddItem: React.FC<AddItemProps> = ({ onAdd, onBulkAdd, currentUser }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedMinStock = Math.floor(Number(minStock));
+    const recurrent = isRecurrent === 'si';
     if (!concept || !obra || !description || quantity < 1 || !location.trim()) return;
+    if (recurrent && (!Number.isFinite(parsedMinStock) || parsedMinStock < 1)) return;
 
     await onAdd({
       concept,
@@ -88,7 +93,9 @@ const AddItem: React.FC<AddItemProps> = ({ onAdd, onBulkAdd, currentUser }) => {
       description,
       imageUrl: imageUrl || '',
       quantity,
-      location: location.trim()
+      location: location.trim(),
+      isRecurrent: recurrent,
+      minStock: recurrent ? parsedMinStock : undefined
     });
 
     navigate('/inventory');
@@ -240,6 +247,34 @@ const AddItem: React.FC<AddItemProps> = ({ onAdd, onBulkAdd, currentUser }) => {
                   onChange={(e) => setLocation(e.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Material recurrente</label>
+                <select
+                  value={isRecurrent}
+                  onChange={(e) => setIsRecurrent(e.target.value as 'no' | 'si')}
+                  className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                >
+                  <option value="no">No</option>
+                  <option value="si">Si</option>
+                </select>
+              </div>
+              {isRecurrent === 'si' && (
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Cantidad minima en stock</label>
+                  <input
+                    required
+                    type="number"
+                    min={1}
+                    value={minStock}
+                    onChange={(e) => setMinStock(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    placeholder="Ej. 10"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-4">

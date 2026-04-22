@@ -13,11 +13,16 @@ create table if not exists public.items (
   description text not null,
   obra text not null,
   quantity integer not null default 0,
+  is_recurrent boolean not null default false,
+  min_stock integer,
   location text,
   image_url text default '',
   created_at bigint not null,
   updated_at bigint not null
 );
+
+alter table public.items add column if not exists is_recurrent boolean not null default false;
+alter table public.items add column if not exists min_stock integer;
 
 -- Tabla de movimientos (historial)
 create table if not exists public.movements (

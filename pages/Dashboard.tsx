@@ -11,6 +11,9 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ items, movements }) => {
   const totalStock = items.reduce((sum, item) => sum + item.quantity, 0);
   const recentMovements = movements.slice(0, 8);
+  const lowStockRecurrent = items.filter(
+    (item) => item.isRecurrent && typeof item.minStock === 'number' && item.quantity <= item.minStock
+  );
   const latestAdded = [...items]
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 5);
@@ -23,6 +26,14 @@ const Dashboard: React.FC<DashboardProps> = ({ items, movements }) => {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {lowStockRecurrent.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="font-bold text-amber-800">Aviso de reposicion</p>
+          <p className="text-sm text-amber-700 mt-1">
+            Hay {lowStockRecurrent.length} materiales recurrentes en nivel minimo o por debajo.
+          </p>
+        </div>
+      )}
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat, i) => (

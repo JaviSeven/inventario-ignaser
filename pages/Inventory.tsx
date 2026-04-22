@@ -6,7 +6,7 @@ import { Search, Trash2, MapPin, MapPinned, ArrowDownCircle, X, Check, Pencil, I
 interface InventoryProps {
   items: StockItem[];
   onMaterialOut: (itemId: string, amount: number, obraDestino: string) => void;
-  onUpdate: (itemId: string, updates: { concept: string; obra: string; description: string; quantity: number; location: string; imageUrl: string }) => void | Promise<void>;
+  onUpdate: (itemId: string, updates: { concept: string; obra: string; description: string; quantity: number; location: string; imageUrl: string; isRecurrent: boolean; minStock?: number }) => void | Promise<void>;
   onDelete: (id: string) => void;
   currentUser: User;
 }
@@ -23,6 +23,8 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
   const [editQuantity, setEditQuantity] = useState('1');
   const [editLocation, setEditLocation] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
+  const [editIsRecurrent, setEditIsRecurrent] = useState<'no' | 'si'>('no');
+  const [editMinStock, setEditMinStock] = useState('1');
 
   const openSalidaModal = (item: StockItem) => {
     setSalidaModal({ item });
@@ -44,6 +46,8 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
     setEditQuantity(String(item.quantity));
     setEditLocation(item.location ?? '');
     setEditImageUrl(item.imageUrl ?? '');
+    setEditIsRecurrent(item.isRecurrent ? 'si' : 'no');
+    setEditMinStock(String(item.minStock ?? 1));
   };
 
   const closeEditModal = () => {
@@ -54,6 +58,8 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
     setEditQuantity('1');
     setEditLocation('');
     setEditImageUrl('');
+    setEditIsRecurrent('no');
+    setEditMinStock('1');
   };
 
   const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,8 +75,11 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
   const confirmEdit = async () => {
     if (!editModal) return;
     const quantity = Math.floor(Number(editQuantity));
+    const recurrent = editIsRecurrent === 'si';
+    const minStock = Math.floor(Number(editMinStock));
     if (!editConcept.trim() || !editObra.trim() || !editDescription.trim() || !editLocation.trim()) return;
     if (!Number.isFinite(quantity) || quantity < 0) return;
+    if (recurrent && (!Number.isFinite(minStock) || minStock < 1)) return;
 
     await onUpdate(editModal.item.id, {
       concept: editConcept.trim(),
@@ -78,7 +87,9 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
       description: editDescription.trim(),
       quantity,
       location: editLocation.trim(),
-      imageUrl: editImageUrl || ''
+      imageUrl: editImageUrl || '',
+      isRecurrent: recurrent,
+      minStock: recurrent ? minStock : undefined
     });
     closeEditModal();
   };
@@ -99,6 +110,10 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
     item.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const recurrentLowStock = filteredItems.filter(
+    (item) => item.isRecurrent && typeof item.minStock === 'number' && item.quantity <= item.minStock
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="relative">
@@ -113,6 +128,11 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {recurrentLowStock.length > 0 && (
+          <div className="col-span-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 text-sm">
+            Aviso de reposicion: {recurrentLowStock.length} material(es) recurrente(s) en minimo.
+          </div>
+        )}
         {filteredItems.map(item => (
           <div key={item.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm group hover:shadow-md transition-shadow">
             <div className="relative h-48 bg-slate-100 overflow-hidden">
@@ -161,6 +181,15 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
                   <MapPinned size={12} className="text-slate-400 shrink-0" />
                   <span className="truncate">{item.location}</span>
                 </p>
+              )}
+              {item.isRecurrent && (
+                <div className={`mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                  typeof item.minStock === 'number' && item.quantity <= item.minStock
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-blue-100 text-blue-700'
+                }`}>
+                  Recurrente{typeof item.minStock === 'number' ? ` · Min: ${item.minStock}` : ''}
+                </div>
               )}
               <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
                 <div className="flex flex-col">
@@ -311,6 +340,32 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Material recurrente</label>
+                  <select
+                    value={editIsRecurrent}
+                    onChange={(e) => setEditIsRecurrent(e.target.value as 'no' | 'si')}
+                    className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="no">No</option>
+                    <option value="si">Si</option>
+                  </select>
+                </div>
+                {editIsRecurrent === 'si' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Cantidad minima en stock</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={editMinStock}
+                      onChange={(e) => setEditMinStock(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Foto del material</label>
                 <div className="flex items-center gap-4">
@@ -356,7 +411,8 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
                   !editDescription.trim() ||
                   !editLocation.trim() ||
                   !Number.isFinite(Number(editQuantity)) ||
-                  Number(editQuantity) < 0
+                  Number(editQuantity) < 0 ||
+                  (editIsRecurrent === 'si' && (!Number.isFinite(Number(editMinStock)) || Number(editMinStock) < 1))
                 }
                 className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50"
               >

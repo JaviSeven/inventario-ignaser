@@ -15,6 +15,8 @@ export interface StockItem {
   description: string;
   obra: string; // Obra de procedencia
   quantity: number;
+  isRecurrent: boolean;
+  minStock?: number;
   location?: string; // Ubicación dentro del almacén
   imageUrl: string;
   createdAt: number;

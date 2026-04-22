@@ -39,6 +39,8 @@ function mapItemRow(row: Record<string, unknown>): StockItem {
     description: row.description as string,
     obra: row.obra as string,
     quantity: Number(row.quantity),
+    isRecurrent: Boolean(row.is_recurrent),
+    minStock: row.min_stock === null || row.min_stock === undefined ? undefined : Number(row.min_stock),
     location: (row.location as string) || undefined,
     imageUrl: (row.image_url as string) ?? '',
     createdAt: Number(row.created_at),
@@ -226,6 +228,8 @@ const App: React.FC = () => {
       ...newItem,
       id,
       quantity,
+      isRecurrent: newItem.isRecurrent,
+      minStock: newItem.isRecurrent ? newItem.minStock : undefined,
       location: newItem.location,
       createdAt: now,
       updatedAt: now
@@ -237,6 +241,8 @@ const App: React.FC = () => {
       description: item.description,
       obra: item.obra,
       quantity: item.quantity,
+      is_recurrent: item.isRecurrent,
+      min_stock: item.isRecurrent ? (item.minStock ?? null) : null,
       location: item.location ?? null,
       image_url: item.imageUrl ?? '',
       created_at: now,
@@ -320,6 +326,8 @@ const App: React.FC = () => {
         description,
         imageUrl: '',
         quantity,
+        isRecurrent: false,
+        minStock: undefined,
         location,
         createdAt: now,
         updatedAt: now
@@ -331,6 +339,8 @@ const App: React.FC = () => {
         description: item.description,
         obra: item.obra,
         quantity: item.quantity,
+        is_recurrent: false,
+        min_stock: null,
         location: item.location ?? null,
         image_url: '',
         created_at: now,
@@ -393,7 +403,7 @@ const App: React.FC = () => {
 
   const updateItem = async (
     itemId: string,
-    updates: { concept: string; obra: string; description: string; quantity: number; location: string; imageUrl: string }
+    updates: { concept: string; obra: string; description: string; quantity: number; location: string; imageUrl: string; isRecurrent: boolean; minStock?: number }
   ) => {
     if (!currentUser || currentUser.role === 'SoloLectura') return;
 
@@ -405,6 +415,8 @@ const App: React.FC = () => {
     const description = updates.description.trim();
     const location = updates.location.trim();
     const quantity = Math.max(0, Math.floor(updates.quantity));
+    const isRecurrent = updates.isRecurrent;
+    const minStock = isRecurrent ? Math.max(1, Math.floor(updates.minStock ?? 1)) : undefined;
     if (!concept || !obra || !description || !location) return;
 
     const now = Date.now();
@@ -414,6 +426,8 @@ const App: React.FC = () => {
       obra,
       description,
       quantity,
+      isRecurrent,
+      minStock,
       location,
       imageUrl: updates.imageUrl ?? '',
       updatedAt: now
@@ -424,6 +438,8 @@ const App: React.FC = () => {
       obra: updatedItem.obra,
       description: updatedItem.description,
       quantity: updatedItem.quantity,
+      is_recurrent: updatedItem.isRecurrent,
+      min_stock: updatedItem.isRecurrent ? (updatedItem.minStock ?? null) : null,
       location: updatedItem.location ?? null,
       image_url: updatedItem.imageUrl ?? '',
       updated_at: now
@@ -440,6 +456,8 @@ const App: React.FC = () => {
     if ((current.location ?? '') !== (updatedItem.location ?? '')) changed.push('ubicacion');
     if ((current.imageUrl ?? '') !== (updatedItem.imageUrl ?? '')) changed.push('imagen');
     if (current.quantity !== updatedItem.quantity) changed.push('cantidad');
+    if (current.isRecurrent !== updatedItem.isRecurrent) changed.push('recurrente');
+    if ((current.minStock ?? null) !== (updatedItem.minStock ?? null)) changed.push('stock minimo');
 
     const quantityDiff = updatedItem.quantity - current.quantity;
     const movementId = crypto.randomUUID();
