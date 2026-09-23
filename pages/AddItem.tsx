@@ -9,6 +9,7 @@ interface AddItemProps {
   onAdd: (item: { concept: string; obra: string; description: string; imageUrl: string; quantity: number; location: string; isRecurrent: boolean; minStock?: number }) => void | Promise<void>;
   onBulkAdd: (items: Array<{ concept: string; obra: string; description: string; quantity: number; location: string }>) => Promise<{ created: number; skipped: number }>;
   currentUser: User;
+  requestMode?: boolean;
 }
 
 const normalizeHeader = (value: string) =>
@@ -33,7 +34,7 @@ const pickValue = (row: Record<string, unknown>, aliases: string[]) => {
   return '';
 };
 
-const AddItem: React.FC<AddItemProps> = ({ onAdd, onBulkAdd, currentUser }) => {
+const AddItem: React.FC<AddItemProps> = ({ onAdd, onBulkAdd, currentUser, requestMode = false }) => {
   const navigate = useNavigate();
 
   if (currentUser.role === 'SoloLectura') {
@@ -98,7 +99,7 @@ const AddItem: React.FC<AddItemProps> = ({ onAdd, onBulkAdd, currentUser }) => {
       minStock: recurrent ? parsedMinStock : undefined
     });
 
-    navigate('/inventory');
+    navigate(requestMode ? '/requests' : '/inventory');
   };
 
   const downloadTemplate = () => {
@@ -159,7 +160,7 @@ const AddItem: React.FC<AddItemProps> = ({ onAdd, onBulkAdd, currentUser }) => {
 
       const result = await onBulkAdd(parsed);
       const totalSkipped = result.skipped + invalidRows;
-      setBulkMessage(`Carga masiva completada: ${result.created} materiales creados${totalSkipped > 0 ? `, ${totalSkipped} omitidos` : ''}.`);
+      setBulkMessage(`${requestMode ? 'Solicitudes enviadas' : 'Carga masiva completada'}: ${result.created} ${requestMode ? 'solicitudes creadas' : 'materiales creados'}${totalSkipped > 0 ? `, ${totalSkipped} omitidos` : ''}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido';
       setBulkError(`No se pudo procesar el Excel: ${message}`);
@@ -175,8 +176,12 @@ const AddItem: React.FC<AddItemProps> = ({ onAdd, onBulkAdd, currentUser }) => {
     <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
         <div className="p-8">
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Dar entrada a material</h2>
-          <p className="text-slate-500 mb-8 text-sm">Completa los datos del material e indica las unidades y la ubicación en el almacén.</p>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">{requestMode ? 'Solicitar entrada de material' : 'Dar entrada a material'}</h2>
+          <p className="text-slate-500 mb-8 text-sm">
+            {requestMode
+              ? 'Completa los datos. IGNASER recibirá la solicitud y el material solo entrará en stock cuando se confirme su recepción.'
+              : 'Completa los datos del material e indica las unidades y la ubicación en el almacén.'}
+          </p>
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -323,14 +328,16 @@ const AddItem: React.FC<AddItemProps> = ({ onAdd, onBulkAdd, currentUser }) => {
                 type="submit"
                 className="flex-[2] px-6 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
               >
-                <Save size={20} /> Dar entrada
+                <Save size={20} /> {requestMode ? 'Enviar solicitud' : 'Dar entrada'}
               </button>
             </div>
 
             <div className="border-t border-slate-200 pt-6 mt-2">
               <h3 className="text-lg font-bold text-slate-800 mb-2">Carga masiva por Excel</h3>
               <p className="text-sm text-slate-500 mb-4">
-                Descarga la plantilla, rellénala y súbela para crear varios materiales en un solo paso.
+                {requestMode
+                  ? 'Descarga la plantilla y súbela para enviar varias solicitudes a IGNASER.'
+                  : 'Descarga la plantilla, rellénala y súbela para crear varios materiales en un solo paso.'}
               </p>
               <div className="flex flex-col md:flex-row gap-3">
                 <button
