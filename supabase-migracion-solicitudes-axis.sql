@@ -3,6 +3,12 @@
 -- Los roles de autorización deben vivir en auth.users.raw_app_meta_data:
 --   {"role":"Admin"}, {"role":"Operario"}, {"role":"Axis"} o {"role":"SoloLectura"}.
 
+-- Compatibilidad con el esquema original de ALMACEN AXIS/IGNASER.
+alter table public.items
+  add column if not exists is_recurrent boolean not null default false;
+alter table public.items
+  add column if not exists min_stock integer;
+
 create table if not exists public.inventory_requests (
   id uuid primary key default gen_random_uuid(),
   concept text not null,
