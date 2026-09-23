@@ -32,6 +32,10 @@ create index if not exists idx_inventory_requests_requested_by
 create index if not exists idx_inventory_requests_pending
   on public.inventory_requests(requested_at desc)
   where status = 'pending';
+create index if not exists idx_inventory_requests_reviewed_by
+  on public.inventory_requests(reviewed_by);
+create index if not exists idx_inventory_requests_created_item_id
+  on public.inventory_requests(created_item_id);
 
 alter table public.inventory_requests enable row level security;
 
