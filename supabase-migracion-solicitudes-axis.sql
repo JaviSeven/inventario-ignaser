@@ -47,6 +47,10 @@ create policy "inventory requests insert own"
   to authenticated
   with check (
     requested_by = auth.uid()
+    and (
+      coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') = 'Axis'
+      or upper(coalesce(auth.jwt() -> 'user_metadata' ->> 'name', '')) = 'AXIS'
+    )
     and status = 'pending'
     and reviewed_by is null
     and reviewed_at is null
