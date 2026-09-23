@@ -28,12 +28,14 @@ import MovementsHistory from './pages/MovementsHistory';
 import AddItem from './pages/AddItem';
 import Requests from './pages/Requests';
 
-function userFromSession(user: { id: string; email?: string; user_metadata?: Record<string, unknown> }): User {
-  const storedRole = (user.user_metadata?.role as UserRole) ?? 'SoloLectura';
+function userFromSession(user: {
+  id: string;
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+  app_metadata?: Record<string, unknown>;
+}): User {
+  const role = (user.app_metadata?.role as UserRole) ?? 'SoloLectura';
   const name = (user.user_metadata?.name as string) ?? user.email ?? 'Usuario';
-  const role: UserRole = storedRole === 'SoloLectura' && name.trim().toUpperCase() === 'AXIS'
-    ? 'Axis'
-    : storedRole;
   return { id: user.id, name, role };
 }
 
@@ -769,7 +771,7 @@ const App: React.FC = () => {
   const approveRequest = async (requestId: string): Promise<string | null> => {
     if (!canManageInventory(currentUser)) return 'No tienes permiso para aprobar solicitudes.';
 
-    const { error } = await supabase.rpc('approve_inventory_request', { p_request_id: requestId });
+    const { error } = await supabase.rpc('review_inventory_request', { p_request_id: requestId, p_decision: 'approved' });
     if (error) {
       console.error('Error aprobando solicitud:', error);
       return `No se pudo aprobar: ${error.message}`;
@@ -797,12 +799,10 @@ const App: React.FC = () => {
   const rejectRequest = async (requestId: string): Promise<string | null> => {
     if (!canManageInventory(currentUser)) return 'No tienes permiso para rechazar solicitudes.';
     const reviewedAt = Date.now();
-    const { error } = await supabase.from('inventory_requests').update({
-      status: 'rejected',
-      reviewed_by: currentUser!.id,
-      reviewed_by_name: currentUser!.name,
-      reviewed_at: reviewedAt
-    }).eq('id', requestId).eq('status', 'pending');
+    const { error } = await supabase.rpc('review_inventory_request', {
+      p_request_id: requestId,
+      p_decision: 'rejected'
+    });
     if (error) {
       console.error('Error rechazando solicitud:', error);
       return `No se pudo rechazar: ${error.message}`;
