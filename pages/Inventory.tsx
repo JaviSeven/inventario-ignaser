@@ -204,7 +204,7 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
                     <Trash2 size={16} />
                   </button>
                 )}
-                {currentUser.role !== 'SoloLectura' && (
+                {(currentUser.role === 'Admin' || currentUser.role === 'Operario') && (
                   <button
                     onClick={() => openEditModal(item)}
                     className="p-2 bg-blue-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ml-2"
@@ -246,7 +246,7 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
                     {item.quantity} <span className="text-xs font-medium text-slate-400">uds.</span>
                   </span>
                 </div>
-                {currentUser.role !== 'SoloLectura' && (
+                {(currentUser.role === 'Admin' || currentUser.role === 'Operario') && (
                   <button
                     onClick={() => openSalidaModal(item)}
                     disabled={item.quantity === 0}
