@@ -20,7 +20,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 
 import { supabase } from './supabaseClient';
-import { StockItem, Movement, User, UserRole } from './types';
+import { StockItem, Movement, User, UserRole, canEditUnits } from './types';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import MovementsHistory from './pages/MovementsHistory';
@@ -29,7 +29,7 @@ import AddItem from './pages/AddItem';
 function userFromSession(user: { id: string; email?: string; user_metadata?: Record<string, unknown> }): User {
   const role = (user.user_metadata?.role as UserRole) ?? 'SoloLectura';
   const name = (user.user_metadata?.name as string) ?? user.email ?? 'Usuario';
-  return { id: user.id, name, role };
+  return { id: user.id, name, role, email: user.email?.toLowerCase() };
 }
 
 function mapItemRow(row: Record<string, unknown>): StockItem {
@@ -501,6 +501,67 @@ const App: React.FC = () => {
     setItems(prev => prev.map(i => (i.id === itemId ? updatedItem : i)));
   };
 
+  const updateItemQuantity = async (itemId: string, newQuantityRaw: number) => {
+    if (!canEditUnits(currentUser) || !currentUser) return false;
+
+    const current = items.find(i => i.id === itemId);
+    if (!current) return false;
+
+    const newQuantity = Math.max(0, Math.floor(newQuantityRaw));
+    if (!Number.isFinite(newQuantity) || newQuantity === current.quantity) return false;
+
+    const now = Date.now();
+    const { error: updateError } = await supabase
+      .from('items')
+      .update({ quantity: newQuantity, updated_at: now })
+      .eq('id', itemId);
+    if (updateError) {
+      console.error('Error actualizando unidades:', updateError);
+      alert(`No se pudieron guardar las unidades: ${updateError.message}`);
+      return false;
+    }
+
+    const quantityDiff = newQuantity - current.quantity;
+    const movementId = crypto.randomUUID();
+    const movement: Movement = {
+      id: movementId,
+      itemId,
+      itemConcept: current.concept,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      type: 'ADJUST',
+      quantityChange: quantityDiff,
+      newQuantity,
+      timestamp: now,
+      note: `Ajuste de unidades: ${current.quantity} → ${newQuantity}`,
+      obraProcedencia: current.obra,
+      obraDestino: undefined
+    };
+
+    const { error: movError } = await supabase.from('movements').insert({
+      id: movementId,
+      item_id: itemId,
+      item_concept: movement.itemConcept,
+      user_id: currentUser.id,
+      user_name: currentUser.name,
+      type: movement.type,
+      quantity_change: movement.quantityChange,
+      new_quantity: movement.newQuantity,
+      timestamp: movement.timestamp,
+      note: movement.note ?? null,
+      obra_procedencia: movement.obraProcedencia ?? null,
+      obra_destino: null
+    });
+    if (movError) {
+      console.error('Error registrando ajuste de unidades en historial:', movError);
+    } else {
+      setMovements(prev => [movement, ...prev]);
+    }
+
+    setItems(prev => prev.map(i => (i.id === itemId ? { ...i, quantity: newQuantity, updatedAt: now } : i)));
+    return true;
+  };
+
   const handleMaterialOut = async (itemId: string, amount: number, obraDestino: string) => {
     if (!currentUser || currentUser.role === 'SoloLectura') return;
 
@@ -895,6 +956,7 @@ const App: React.FC = () => {
                   items={items} 
                   onMaterialOut={handleMaterialOut}
                   onUpdate={updateItem}
+                  onUpdateQuantity={updateItemQuantity}
                   onDelete={deleteItem}
                   currentUser={currentUser}
                 />

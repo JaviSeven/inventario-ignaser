@@ -1,17 +1,18 @@
 
 import React, { useState } from 'react';
-import { StockItem, User } from '../types';
-import { Search, Trash2, MapPin, MapPinned, ArrowDownCircle, X, Check, Pencil, ImagePlus, ClipboardList, FilterX } from 'lucide-react';
+import { StockItem, User, canEditUnits } from '../types';
+import { Search, Trash2, MapPin, MapPinned, ArrowDownCircle, X, Check, Pencil, ImagePlus, ClipboardList, FilterX, Minus, Plus } from 'lucide-react';
 
 interface InventoryProps {
   items: StockItem[];
   onMaterialOut: (itemId: string, amount: number, obraDestino: string) => void;
   onUpdate: (itemId: string, updates: { concept: string; obra: string; description: string; quantity: number; location: string; imageUrl: string; isRecurrent: boolean; minStock?: number }) => void | Promise<void>;
+  onUpdateQuantity: (itemId: string, newQuantity: number) => Promise<boolean>;
   onDelete: (id: string) => void;
   currentUser: User;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, onDelete, currentUser }) => {
+const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, onUpdateQuantity, onDelete, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [onlyMinimum, setOnlyMinimum] = useState(false);
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
@@ -27,6 +28,33 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
   const [editImageUrl, setEditImageUrl] = useState('');
   const [editIsRecurrent, setEditIsRecurrent] = useState<'no' | 'si'>('no');
   const [editMinStock, setEditMinStock] = useState('1');
+  const [unitsEditId, setUnitsEditId] = useState<string | null>(null);
+  const [unitsValue, setUnitsValue] = useState('0');
+  const [unitsSaving, setUnitsSaving] = useState(false);
+  const userCanEditUnits = canEditUnits(currentUser);
+
+  const startUnitsEdit = (item: StockItem) => {
+    setUnitsEditId(item.id);
+    setUnitsValue(String(item.quantity));
+  };
+
+  const cancelUnitsEdit = () => {
+    setUnitsEditId(null);
+    setUnitsValue('0');
+  };
+
+  const saveUnitsEdit = async (item: StockItem) => {
+    const value = Math.floor(Number(unitsValue));
+    if (!Number.isFinite(value) || value < 0) return;
+    if (value === item.quantity) {
+      cancelUnitsEdit();
+      return;
+    }
+    setUnitsSaving(true);
+    const ok = await onUpdateQuantity(item.id, value);
+    setUnitsSaving(false);
+    if (ok) cancelUnitsEdit();
+  };
 
   const openSalidaModal = (item: StockItem) => {
     setSalidaModal({ item });
@@ -199,15 +227,15 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
                         onDelete(item.id);
                       }
                     }}
-                    className="p-2 bg-rose-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="p-2 bg-rose-500 text-white rounded-lg md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   >
                     <Trash2 size={16} />
                   </button>
                 )}
-                {currentUser.role !== 'SoloLectura' && (
+                {userCanEditUnits && (
                   <button
                     onClick={() => openEditModal(item)}
-                    className="p-2 bg-blue-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ml-2"
+                    className="p-2 bg-blue-600 text-white rounded-lg md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2"
                   >
                     <Pencil size={16} />
                   </button>
@@ -242,9 +270,71 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
               <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
                 <div className="flex flex-col">
                   <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Stock Almacenado</span>
-                  <span className="text-2xl font-black text-slate-800">
-                    {item.quantity} <span className="text-xs font-medium text-slate-400">uds.</span>
-                  </span>
+                  {unitsEditId === item.id ? (
+                    <div className="flex items-center gap-1 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setUnitsValue(v => String(Math.max(0, Math.floor(Number(v) || 0) - 1)))}
+                        className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        aria-label="Restar una unidad"
+                      >
+                        <Minus size={16} />
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        value={unitsValue}
+                        autoFocus
+                        onChange={e => setUnitsValue(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') void saveUnitsEdit(item);
+                          if (e.key === 'Escape') cancelUnitsEdit();
+                        }}
+                        className="w-20 px-2 py-1.5 text-center text-lg font-bold bg-slate-50 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setUnitsValue(v => String(Math.floor(Number(v) || 0) + 1))}
+                        className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        aria-label="Sumar una unidad"
+                      >
+                        <Plus size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void saveUnitsEdit(item)}
+                        disabled={unitsSaving || !Number.isFinite(Number(unitsValue)) || Number(unitsValue) < 0}
+                        className="p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                        aria-label="Guardar unidades"
+                      >
+                        <Check size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelUnitsEdit}
+                        className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200"
+                        aria-label="Cancelar"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-2xl font-black text-slate-800 flex items-center gap-2">
+                      {item.quantity} <span className="text-xs font-medium text-slate-400">uds.</span>
+                      {userCanEditUnits && (
+                        <button
+                          type="button"
+                          onClick={() => startUnitsEdit(item)}
+                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50"
+                          title="Editar unidades"
+                          aria-label="Editar unidades"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                    </span>
+                  )}
                 </div>
                 {currentUser.role !== 'SoloLectura' && (
                   <button
