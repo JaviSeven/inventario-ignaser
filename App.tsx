@@ -219,7 +219,7 @@ const App: React.FC = () => {
   };
 
   const addItem = async (newItem: Omit<StockItem, 'id' | 'createdAt' | 'updatedAt'> & { quantity: number; location: string }) => {
-    if (!currentUser || currentUser.role === 'SoloLectura') return;
+    if (!currentUser || !canEditUnits(currentUser)) return;
 
     const id = crypto.randomUUID();
     const quantity = Math.max(0, newItem.quantity);
@@ -297,7 +297,7 @@ const App: React.FC = () => {
   const addItemsBulk = async (
     bulkItems: Array<{ concept: string; obra: string; description: string; quantity: number; location: string }>
   ) => {
-    if (!currentUser || currentUser.role === 'SoloLectura') {
+    if (!currentUser || !canEditUnits(currentUser)) {
       return { created: 0, skipped: bulkItems.length };
     }
 
@@ -554,6 +554,70 @@ const App: React.FC = () => {
     });
     if (movError) {
       console.error('Error registrando ajuste de unidades en historial:', movError);
+    } else {
+      setMovements(prev => [movement, ...prev]);
+    }
+
+    setItems(prev => prev.map(i => (i.id === itemId ? { ...i, quantity: newQuantity, updatedAt: now } : i)));
+    return true;
+  };
+
+  const restockItem = async (itemId: string, amountRaw: number, obraProcedencia: string, extraNote: string) => {
+    if (!currentUser || !canEditUnits(currentUser)) return false;
+
+    const current = items.find(i => i.id === itemId);
+    if (!current) return false;
+
+    const amount = Math.floor(amountRaw);
+    if (!Number.isFinite(amount) || amount < 1) return false;
+
+    const newQuantity = current.quantity + amount;
+    const now = Date.now();
+    const procedencia = obraProcedencia.trim() || current.obra;
+
+    const { error: updateError } = await supabase
+      .from('items')
+      .update({ quantity: newQuantity, updated_at: now })
+      .eq('id', itemId);
+    if (updateError) {
+      console.error('Error actualizando material existente:', updateError);
+      alert(`No se pudo dar entrada al material: ${updateError.message}`);
+      return false;
+    }
+
+    const movementId = crypto.randomUUID();
+    const note = `Entrada a material existente: +${amount} uds. Obra: ${procedencia}${extraNote.trim() ? `. ${extraNote.trim()}` : ''}`;
+    const movement: Movement = {
+      id: movementId,
+      itemId,
+      itemConcept: current.concept,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      type: 'IN',
+      quantityChange: amount,
+      newQuantity,
+      timestamp: now,
+      note,
+      obraProcedencia: procedencia,
+      obraDestino: 'Almacén'
+    };
+
+    const { error: movError } = await supabase.from('movements').insert({
+      id: movementId,
+      item_id: itemId,
+      item_concept: movement.itemConcept,
+      user_id: currentUser.id,
+      user_name: currentUser.name,
+      type: movement.type,
+      quantity_change: movement.quantityChange,
+      new_quantity: movement.newQuantity,
+      timestamp: movement.timestamp,
+      note: movement.note ?? null,
+      obra_procedencia: movement.obraProcedencia ?? null,
+      obra_destino: movement.obraDestino ?? null
+    });
+    if (movError) {
+      console.error('Error registrando entrada en historial:', movError);
     } else {
       setMovements(prev => [movement, ...prev]);
     }
@@ -897,7 +961,7 @@ const App: React.FC = () => {
             <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" />
             <SidebarLink to="/inventory" icon={<Package size={20} />} label="Inventario" />
             <SidebarLink to="/history" icon={<History size={20} />} label="Historial" />
-            {currentUser.role !== 'SoloLectura' && (
+            {canEditUnits(currentUser) && (
               <SidebarLink to="/add" icon={<ArrowUpCircle size={20} />} label="Entrada de Material" />
             )}
           </nav>
@@ -965,7 +1029,7 @@ const App: React.FC = () => {
                 <MovementsHistory movements={movements} currentUser={currentUser} onClearHistory={clearHistory} />
               } />
               <Route path="/add" element={
-                <AddItem onAdd={addItem} onBulkAdd={addItemsBulk} currentUser={currentUser} />
+                <AddItem items={items} onAdd={addItem} onBulkAdd={addItemsBulk} onRestock={restockItem} currentUser={currentUser} />
               } />
             </Routes>
           </div>
@@ -974,7 +1038,7 @@ const App: React.FC = () => {
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 h-16 flex items-center justify-around px-2 z-50">
           <MobileLink to="/" icon={<LayoutDashboard size={24} />} />
           <MobileLink to="/inventory" icon={<Package size={24} />} />
-          {currentUser.role !== 'SoloLectura' && (
+          {canEditUnits(currentUser) && (
             <MobileLink to="/add" icon={<ArrowUpCircle size={32} className="text-blue-600" />} />
           )}
           <MobileLink to="/history" icon={<History size={24} />} />
