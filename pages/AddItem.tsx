@@ -3,13 +3,13 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Camera, Save, X, MapPin, Package, MapPinned, Lock, Search, RefreshCw, PlusCircle, ChevronDown, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { User, StockItem, canEditUnits } from '../types';
+import { User, StockItem, canEditUnits, getExistingCategories } from '../types';
 
 interface AddItemProps {
   items: StockItem[];
   onRestock: (itemId: string, amount: number, obraProcedencia: string, note: string) => Promise<boolean>;
-  onAdd: (item: { concept: string; obra: string; description: string; imageUrl: string; quantity: number; location: string; isRecurrent: boolean; minStock?: number }) => void | Promise<void>;
-  onBulkAdd: (items: Array<{ concept: string; obra: string; description: string; quantity: number; location: string }>) => Promise<{ created: number; skipped: number }>;
+  onAdd: (item: { concept: string; obra: string; description: string; imageUrl: string; quantity: number; location: string; category?: string; isRecurrent: boolean; minStock?: number }) => void | Promise<void>;
+  onBulkAdd: (items: Array<{ concept: string; obra: string; description: string; quantity: number; location: string; category?: string }>) => Promise<{ created: number; skipped: number }>;
   currentUser: User;
 }
 
@@ -64,6 +64,7 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
   const [imageUrl, setImageUrl] = useState('');
   const [quantity, setQuantity] = useState<number>(1);
   const [location, setLocation] = useState('');
+  const [category, setCategory] = useState('');
   const [isRecurrent, setIsRecurrent] = useState<'no' | 'si'>('no');
   const [minStock, setMinStock] = useState<string>('1');
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
@@ -97,6 +98,7 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
       imageUrl: imageUrl || '',
       quantity,
       location: location.trim(),
+      category: category.trim() || undefined,
       isRecurrent: recurrent,
       minStock: recurrent ? parsedMinStock : undefined
     });
@@ -106,9 +108,9 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
 
   const downloadTemplate = () => {
     const template = XLSX.utils.aoa_to_sheet([
-      ['Concepto', 'Obra', 'Descripción', 'Unidades', 'Ubicación'],
-      ['Cable UTP Cat6', 'Obra Norte', 'Caja abierta, material revisado', 12, 'Estantería A1'],
-      ['Tubo PVC 20mm', 'Obra Centro', 'Tramo de 3 metros', 30, 'Pasillo 2 - Balda 4']
+      ['Concepto', 'Categoría', 'Obra', 'Descripción', 'Unidades', 'Ubicación'],
+      ['Cable UTP Cat6', 'Cableado', 'Obra Norte', 'Caja abierta, material revisado', 12, 'Estantería A1'],
+      ['Tubo PVC 20mm', 'Fontanería', 'Obra Centro', 'Tramo de 3 metros', 30, 'Pasillo 2 - Balda 4']
     ]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, template, 'Plantilla');
@@ -133,7 +135,7 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
       }
 
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
-      const parsed: Array<{ concept: string; obra: string; description: string; quantity: number; location: string }> = [];
+      const parsed: Array<{ concept: string; obra: string; description: string; quantity: number; location: string; category?: string }> = [];
       let invalidRows = 0;
 
       for (const row of rows) {
@@ -141,6 +143,7 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
         const obra = String(pickValue(row, ['Obra', 'Obra de procedencia'])).trim();
         const description = String(pickValue(row, ['Descripción', 'Descripcion', 'Descripción / Observaciones', 'Observaciones'])).trim();
         const location = String(pickValue(row, ['Ubicación', 'Ubicacion', 'Ubicación en el almacén', 'Ubicacion en el almacen'])).trim();
+        const rowCategory = String(pickValue(row, ['Categoría', 'Categoria'])).trim();
         const rawQuantity = pickValue(row, ['Unidades', 'Cantidad', 'Qty', 'Quantity']);
         const quantity = Math.floor(Number(String(rawQuantity).replace(',', '.')));
 
@@ -152,7 +155,7 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
           continue;
         }
 
-        parsed.push({ concept, obra, description, quantity, location });
+        parsed.push({ concept, obra, description, quantity, location, category: rowCategory || undefined });
       }
 
       if (parsed.length === 0) {
@@ -215,6 +218,23 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
                   onChange={(e) => setObra(e.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">
+                Categoría <span className="font-normal text-slate-400">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                list="categorias-nuevo-material"
+                className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                placeholder="Ej. Cableado, Fontanería..."
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              />
+              <datalist id="categorias-nuevo-material">
+                {getExistingCategories(items).map(c => <option key={c} value={c} />)}
+              </datalist>
             </div>
 
             <div className="space-y-2">

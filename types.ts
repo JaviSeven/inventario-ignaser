@@ -19,10 +19,21 @@ export interface StockItem {
   isRecurrent: boolean;
   minStock?: number;
   location?: string; // Ubicación dentro del almacén
+  category?: string; // Categoría del material
   imageUrl: string;
   createdAt: number;
   updatedAt: number;
 }
+
+// Categorías ya usadas en el inventario (sin duplicados, ordenadas), para sugerirlas al escribir
+export const getExistingCategories = (items: StockItem[]): string[] => {
+  const byKey = new Map<string, string>();
+  for (const item of items) {
+    const category = item.category?.trim();
+    if (category && !byKey.has(category.toLowerCase())) byKey.set(category.toLowerCase(), category);
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+};
 
 // Usuarios que siempre pueden editar las unidades del inventario,
 // independientemente del rol guardado en Supabase.

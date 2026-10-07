@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
-import { StockItem, User, canEditUnits } from '../types';
+import { StockItem, User, canEditUnits, getExistingCategories } from '../types';
 import { Search, Trash2, MapPin, MapPinned, ArrowDownCircle, X, Check, Pencil, ImagePlus, ClipboardList, FilterX, Minus, Plus } from 'lucide-react';
 
 interface InventoryProps {
   items: StockItem[];
   onMaterialOut: (itemId: string, amount: number, obraDestino: string) => void;
-  onUpdate: (itemId: string, updates: { concept: string; obra: string; description: string; quantity: number; location: string; imageUrl: string; isRecurrent: boolean; minStock?: number }) => void | Promise<void>;
+  onUpdate: (itemId: string, updates: { concept: string; obra: string; description: string; quantity: number; location: string; category?: string; imageUrl: string; isRecurrent: boolean; minStock?: number }) => void | Promise<void>;
   onUpdateQuantity: (itemId: string, newQuantity: number) => Promise<boolean>;
   onDelete: (id: string) => void;
   currentUser: User;
@@ -25,6 +25,7 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
   const [editDescription, setEditDescription] = useState('');
   const [editQuantity, setEditQuantity] = useState('1');
   const [editLocation, setEditLocation] = useState('');
+  const [editCategory, setEditCategory] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
   const [editIsRecurrent, setEditIsRecurrent] = useState<'no' | 'si'>('no');
   const [editMinStock, setEditMinStock] = useState('1');
@@ -75,6 +76,7 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
     setEditDescription(item.description);
     setEditQuantity(String(item.quantity));
     setEditLocation(item.location ?? '');
+    setEditCategory(item.category ?? '');
     setEditImageUrl(item.imageUrl ?? '');
     setEditIsRecurrent(item.isRecurrent ? 'si' : 'no');
     setEditMinStock(String(item.minStock ?? 1));
@@ -87,6 +89,7 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
     setEditDescription('');
     setEditQuantity('1');
     setEditLocation('');
+    setEditCategory('');
     setEditImageUrl('');
     setEditIsRecurrent('no');
     setEditMinStock('1');
@@ -117,6 +120,7 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
       description: editDescription.trim(),
       quantity,
       location: editLocation.trim(),
+      category: editCategory.trim() || undefined,
       imageUrl: editImageUrl || '',
       isRecurrent: recurrent,
       minStock: recurrent ? minStock : undefined
@@ -134,11 +138,13 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
     closeSalidaModal();
   };
 
-  const filteredItems = items.filter(item => 
+  const filteredItems = items.filter(item =>
     item.concept.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.obra.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.description.toLowerCase().includes(searchTerm.toLowerCase())
+    item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.category ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+  const existingCategories = getExistingCategories(items);
 
   const recurrentLowStock = filteredItems.filter(
     (item) => item.isRecurrent && typeof item.minStock === 'number' && item.quantity <= item.minStock
@@ -171,7 +177,7 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
         <input
           type="text"
-          placeholder="Buscar por concepto, obra o descripción..."
+          placeholder="Buscar por concepto, categoría, obra o descripción..."
           className="w-full pl-12 pr-4 py-4 bg-white rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -251,6 +257,11 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
                 <h4 className="font-bold text-slate-800 text-lg truncate flex-1">{item.concept}</h4>
                 <span className="text-[10px] text-slate-400 font-mono mt-1">ID: {item.id.slice(0, 5)}</span>
               </div>
+              {item.category && (
+                <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 text-[11px] font-semibold max-w-full truncate">
+                  {item.category}
+                </span>
+              )}
               <p className="text-slate-500 text-sm mt-1 line-clamp-2 min-h-[40px]">{item.description}</p>
               {item.location && (
                 <p className="text-slate-500 text-xs mt-2 flex items-center gap-1">
@@ -446,6 +457,23 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
                     className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Categoría <span className="font-normal text-slate-400">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  list="categorias-editar-material"
+                  value={editCategory}
+                  onChange={e => setEditCategory(e.target.value)}
+                  placeholder="Ej. Cableado, Fontanería..."
+                  className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <datalist id="categorias-editar-material">
+                  {existingCategories.map(c => <option key={c} value={c} />)}
+                </datalist>
               </div>
 
               <div>

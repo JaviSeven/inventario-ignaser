@@ -42,6 +42,7 @@ function mapItemRow(row: Record<string, unknown>): StockItem {
     isRecurrent: Boolean(row.is_recurrent),
     minStock: row.min_stock === null || row.min_stock === undefined ? undefined : Number(row.min_stock),
     location: (row.location as string) || undefined,
+    category: (row.category as string) || undefined,
     imageUrl: (row.image_url as string) ?? '',
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at)
@@ -231,6 +232,7 @@ const App: React.FC = () => {
       isRecurrent: newItem.isRecurrent,
       minStock: newItem.isRecurrent ? newItem.minStock : undefined,
       location: newItem.location,
+      category: newItem.category?.trim() || undefined,
       createdAt: now,
       updatedAt: now
     };
@@ -244,6 +246,7 @@ const App: React.FC = () => {
       is_recurrent: item.isRecurrent,
       min_stock: item.isRecurrent ? (item.minStock ?? null) : null,
       location: item.location ?? null,
+      category: item.category ?? null,
       image_url: item.imageUrl ?? '',
       created_at: now,
       updated_at: now
@@ -295,7 +298,7 @@ const App: React.FC = () => {
   };
 
   const addItemsBulk = async (
-    bulkItems: Array<{ concept: string; obra: string; description: string; quantity: number; location: string }>
+    bulkItems: Array<{ concept: string; obra: string; description: string; quantity: number; location: string; category?: string }>
   ) => {
     if (!currentUser || !canEditUnits(currentUser)) {
       return { created: 0, skipped: bulkItems.length };
@@ -310,6 +313,7 @@ const App: React.FC = () => {
       const obra = raw.obra.trim();
       const description = raw.description.trim();
       const location = raw.location.trim();
+      const category = raw.category?.trim() || undefined;
       const quantity = Math.max(0, Math.floor(raw.quantity));
 
       if (!concept || !obra || !description || !location || quantity < 1) {
@@ -329,6 +333,7 @@ const App: React.FC = () => {
         isRecurrent: false,
         minStock: undefined,
         location,
+        category,
         createdAt: now,
         updatedAt: now
       };
@@ -342,6 +347,7 @@ const App: React.FC = () => {
         is_recurrent: false,
         min_stock: null,
         location: item.location ?? null,
+        category: item.category ?? null,
         image_url: '',
         created_at: now,
         updated_at: now
@@ -403,7 +409,7 @@ const App: React.FC = () => {
 
   const updateItem = async (
     itemId: string,
-    updates: { concept: string; obra: string; description: string; quantity: number; location: string; imageUrl: string; isRecurrent: boolean; minStock?: number }
+    updates: { concept: string; obra: string; description: string; quantity: number; location: string; category?: string; imageUrl: string; isRecurrent: boolean; minStock?: number }
   ) => {
     if (!currentUser || currentUser.role === 'SoloLectura') return;
 
@@ -414,6 +420,7 @@ const App: React.FC = () => {
     const obra = updates.obra.trim();
     const description = updates.description.trim();
     const location = updates.location.trim();
+    const category = updates.category?.trim() || undefined;
     const quantity = Math.max(0, Math.floor(updates.quantity));
     const isRecurrent = updates.isRecurrent;
     const minStock = isRecurrent ? Math.max(1, Math.floor(updates.minStock ?? 1)) : undefined;
@@ -429,6 +436,7 @@ const App: React.FC = () => {
       isRecurrent,
       minStock,
       location,
+      category,
       imageUrl: updates.imageUrl ?? '',
       updatedAt: now
     };
@@ -441,6 +449,7 @@ const App: React.FC = () => {
       is_recurrent: updatedItem.isRecurrent,
       min_stock: updatedItem.isRecurrent ? (updatedItem.minStock ?? null) : null,
       location: updatedItem.location ?? null,
+      category: updatedItem.category ?? null,
       image_url: updatedItem.imageUrl ?? '',
       updated_at: now
     }).eq('id', itemId);
@@ -454,6 +463,7 @@ const App: React.FC = () => {
     if (current.obra !== updatedItem.obra) changed.push('obra');
     if (current.description !== updatedItem.description) changed.push('descripcion');
     if ((current.location ?? '') !== (updatedItem.location ?? '')) changed.push('ubicacion');
+    if ((current.category ?? '') !== (updatedItem.category ?? '')) changed.push('categoria');
     if ((current.imageUrl ?? '') !== (updatedItem.imageUrl ?? '')) changed.push('imagen');
     if (current.quantity !== updatedItem.quantity) changed.push('cantidad');
     if (current.isRecurrent !== updatedItem.isRecurrent) changed.push('recurrente');
@@ -768,6 +778,7 @@ const App: React.FC = () => {
     sheet.columns = [
       { header: 'Foto', key: 'foto', width: 14 },
       { header: 'Concepto', key: 'concept', width: 22 },
+      { header: 'Categoría', key: 'category', width: 18 },
       { header: 'Obra', key: 'obra', width: 18 },
       { header: 'Descripción', key: 'description', width: 30 },
       { header: 'Cantidad', key: 'quantity', width: 10 },
@@ -780,11 +791,18 @@ const App: React.FC = () => {
     const imgSize = { width: 80, height: 80 };
     const rowHeight = 62;
 
-    items.forEach((item, index) => {
+    const sinCategoria = 'Sin categoría';
+    const sortedItems = [...items].sort((a, b) =>
+      (a.category || sinCategoria).localeCompare(b.category || sinCategoria, 'es', { sensitivity: 'base' }) ||
+      a.concept.localeCompare(b.concept, 'es', { sensitivity: 'base' })
+    );
+
+    sortedItems.forEach((item, index) => {
       const rowIndex = index + 2;
       sheet.addRow({
         foto: '',
         concept: item.concept,
+        category: item.category || sinCategoria,
         obra: item.obra,
         description: item.description,
         quantity: item.quantity,
