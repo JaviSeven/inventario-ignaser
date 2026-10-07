@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { StockItem, User, canEditUnits, getExistingCategories } from '../types';
+import { StockItem, User, canEditUnits, CATEGORIAS, matchCategoria } from '../types';
 import { Search, Trash2, MapPin, MapPinned, ArrowDownCircle, X, Check, Pencil, ImagePlus, ClipboardList, FilterX, Minus, Plus } from 'lucide-react';
 
 interface InventoryProps {
@@ -76,7 +76,7 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
     setEditDescription(item.description);
     setEditQuantity(String(item.quantity));
     setEditLocation(item.location ?? '');
-    setEditCategory(item.category ?? '');
+    setEditCategory(matchCategoria(item.category ?? '') ?? '');
     setEditImageUrl(item.imageUrl ?? '');
     setEditIsRecurrent(item.isRecurrent ? 'si' : 'no');
     setEditMinStock(String(item.minStock ?? 1));
@@ -120,7 +120,7 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
       description: editDescription.trim(),
       quantity,
       location: editLocation.trim(),
-      category: editCategory.trim() || undefined,
+      category: matchCategoria(editCategory) ?? undefined,
       imageUrl: editImageUrl || '',
       isRecurrent: recurrent,
       minStock: recurrent ? minStock : undefined
@@ -144,7 +144,6 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
     item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (item.category ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
-  const existingCategories = getExistingCategories(items);
 
   const recurrentLowStock = filteredItems.filter(
     (item) => item.isRecurrent && typeof item.minStock === 'number' && item.quantity <= item.minStock
@@ -460,20 +459,15 @@ const Inventory: React.FC<InventoryProps> = ({ items, onMaterialOut, onUpdate, o
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Categoría <span className="font-normal text-slate-400">(opcional)</span>
-                </label>
-                <input
-                  type="text"
-                  list="categorias-editar-material"
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Categoría</label>
+                <select
                   value={editCategory}
                   onChange={e => setEditCategory(e.target.value)}
-                  placeholder="Ej. Cableado, Fontanería..."
                   className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <datalist id="categorias-editar-material">
-                  {existingCategories.map(c => <option key={c} value={c} />)}
-                </datalist>
+                >
+                  <option value="">— Sin categoría —</option>
+                  {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
 
               <div>

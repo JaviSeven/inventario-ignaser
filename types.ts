@@ -25,6 +25,30 @@ export interface StockItem {
   updatedAt: number;
 }
 
+// Lista fija de categorías (la misma que en la app de AXIS)
+export const CATEGORIAS = [
+  'CONSTRUCCION',
+  'ELECTRODOMESTICOS',
+  'ILUMINARIA',
+  'JARDINERIA',
+  'MOBILIARIO',
+  'MOLDURAS',
+  'PERFILERIA',
+  'SANITARIOS',
+  'SUELOS',
+  'TECHOS'
+] as const;
+
+export type Categoria = typeof CATEGORIAS[number];
+
+// Devuelve la categoría oficial que coincide con el texto (sin distinguir mayúsculas ni acentos), o null
+export const matchCategoria = (raw: string): Categoria | null => {
+  const norm = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  const target = norm(raw);
+  if (!target) return null;
+  return CATEGORIAS.find(c => norm(c) === target) ?? null;
+};
+
 // Categorías ya usadas en el inventario (sin duplicados, ordenadas), para sugerirlas al escribir
 export const getExistingCategories = (items: StockItem[]): string[] => {
   const byKey = new Map<string, string>();

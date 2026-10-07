@@ -3,7 +3,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Camera, Save, X, MapPin, Package, MapPinned, Lock, Search, RefreshCw, PlusCircle, ChevronDown, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { User, StockItem, canEditUnits, getExistingCategories } from '../types';
+import { User, StockItem, canEditUnits, CATEGORIAS, matchCategoria } from '../types';
 
 interface AddItemProps {
   items: StockItem[];
@@ -88,7 +88,7 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
     e.preventDefault();
     const parsedMinStock = Math.floor(Number(minStock));
     const recurrent = isRecurrent === 'si';
-    if (!concept || !obra || !description || quantity < 1 || !location.trim()) return;
+    if (!concept || !obra || !description || quantity < 1 || !location.trim() || !matchCategoria(category)) return;
     if (recurrent && (!Number.isFinite(parsedMinStock) || parsedMinStock < 1)) return;
 
     await onAdd({
@@ -98,7 +98,7 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
       imageUrl: imageUrl || '',
       quantity,
       location: location.trim(),
-      category: category.trim() || undefined,
+      category: matchCategoria(category) ?? undefined,
       isRecurrent: recurrent,
       minStock: recurrent ? parsedMinStock : undefined
     });
@@ -109,8 +109,10 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
   const downloadTemplate = () => {
     const template = XLSX.utils.aoa_to_sheet([
       ['Concepto', 'Categoría', 'Obra', 'Descripción', 'Unidades', 'Ubicación'],
-      ['Cable UTP Cat6', 'Cableado', 'Obra Norte', 'Caja abierta, material revisado', 12, 'Estantería A1'],
-      ['Tubo PVC 20mm', 'Fontanería', 'Obra Centro', 'Tramo de 3 metros', 30, 'Pasillo 2 - Balda 4']
+      ['Plafón LED 60x60', 'ILUMINARIA', 'Obra Norte', 'Caja abierta, material revisado', 12, 'Estantería A1'],
+      ['Inodoro suspendido', 'SANITARIOS', 'Obra Centro', 'Sin usar', 3, 'Pasillo 2 - Balda 4'],
+      [],
+      ['Categorías válidas:', CATEGORIAS.join(', ')]
     ]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, template, 'Plantilla');
@@ -143,29 +145,30 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
         const obra = String(pickValue(row, ['Obra', 'Obra de procedencia'])).trim();
         const description = String(pickValue(row, ['Descripción', 'Descripcion', 'Descripción / Observaciones', 'Observaciones'])).trim();
         const location = String(pickValue(row, ['Ubicación', 'Ubicacion', 'Ubicación en el almacén', 'Ubicacion en el almacen'])).trim();
-        const rowCategory = String(pickValue(row, ['Categoría', 'Categoria'])).trim();
+        const rowCategory = matchCategoria(String(pickValue(row, ['Categoría', 'Categoria'])));
         const rawQuantity = pickValue(row, ['Unidades', 'Cantidad', 'Qty', 'Quantity']);
         const quantity = Math.floor(Number(String(rawQuantity).replace(',', '.')));
 
         const isEmptyRow = !concept && !obra && !description && !location && !String(rawQuantity).trim();
         if (isEmptyRow) continue;
 
-        if (!concept || !obra || !description || !location || !Number.isFinite(quantity) || quantity < 1) {
+        if (concept === 'Categorías válidas:') continue;
+        if (!concept || !obra || !description || !location || !rowCategory || !Number.isFinite(quantity) || quantity < 1) {
           invalidRows += 1;
           continue;
         }
 
-        parsed.push({ concept, obra, description, quantity, location, category: rowCategory || undefined });
+        parsed.push({ concept, obra, description, quantity, location, category: rowCategory });
       }
 
       if (parsed.length === 0) {
-        setBulkError('No se encontraron filas válidas para importar. Revisa la plantilla.');
+        setBulkError(`No se encontraron filas válidas para importar. Revisa la plantilla: todas las filas necesitan una categoría válida (${CATEGORIAS.join(', ')}).`);
         return;
       }
 
       const result = await onBulkAdd(parsed);
       const totalSkipped = result.skipped + invalidRows;
-      setBulkMessage(`Carga masiva completada: ${result.created} materiales creados${totalSkipped > 0 ? `, ${totalSkipped} omitidos` : ''}.`);
+      setBulkMessage(`Carga masiva completada: ${result.created} materiales creados${totalSkipped > 0 ? `, ${totalSkipped} omitidos (revisa que tengan todos los datos y una categoría válida)` : ''}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido';
       setBulkError(`No se pudo procesar el Excel: ${message}`);
@@ -221,20 +224,16 @@ const AddItem: React.FC<AddItemProps> = ({ items, onAdd, onBulkAdd, onRestock, c
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">
-                Categoría <span className="font-normal text-slate-400">(opcional)</span>
-              </label>
-              <input
-                type="text"
-                list="categorias-nuevo-material"
+              <label className="text-sm font-semibold text-slate-700">Categoría</label>
+              <select
+                required
                 className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                placeholder="Ej. Cableado, Fontanería..."
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-              />
-              <datalist id="categorias-nuevo-material">
-                {getExistingCategories(items).map(c => <option key={c} value={c} />)}
-              </datalist>
+              >
+                <option value="" disabled>Selecciona una categoría...</option>
+                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
 
             <div className="space-y-2">
